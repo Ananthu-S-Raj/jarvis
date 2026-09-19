@@ -2,18 +2,19 @@
 
 import speech_recognition as sr
 
+_recognizer = sr.Recognizer()
+_recognizer.dynamic_energy_threshold = True
+_recognizer.pause_threshold = 0.7
+
 
 def listen() -> str | None:
-    recognizer = sr.Recognizer()
-
     try:
         with sr.Microphone() as source:
             print("\nListening...")
-            recognizer.adjust_for_ambient_noise(source, duration=0.5)
-            audio = recognizer.listen(source, timeout=8, phrase_time_limit=10)
+            audio = _recognizer.listen(source, timeout=8, phrase_time_limit=12)
 
         print("Recognizing...")
-        return recognizer.recognize_google(audio)
+        return _recognizer.recognize_google(audio)
 
     except sr.WaitTimeoutError:
         print("No speech detected.")
@@ -23,5 +24,7 @@ def listen() -> str | None:
         print(f"Speech recognition service error: {exc}")
     except OSError as exc:
         print(f"Microphone error: {exc}")
+    except KeyboardInterrupt:
+        raise
 
     return None
