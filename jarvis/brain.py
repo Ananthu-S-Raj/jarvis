@@ -1,46 +1,39 @@
-"""Gemini reasoning fallback for commands local tools cannot answer."""
+"""Gemini conversational fallback."""
 
-from __future__ import annotations
+from jarvis.config import GEMINI_API_KEY, GEMINI_MODEL
 
-import os
-
-MODEL = os.getenv("GEMINI_MODEL", "gemini-3.8-flash")
 _client = None
-_previous_interaction_id: str | None = None
+_chat = None
 
 SYSTEM_INSTRUCTION = """You are Jarvis, a concise Windows desktop assistant.
-Local Python tools perform computer actions. You handle conversation and questions.
-Never claim a computer action happened unless a local tool actually performed it.
-Keep spoken answers concise unless the user asks for detail.
+Local Python tools perform computer actions. You answer conversation and knowledge
+questions. Never claim a computer action happened unless a local tool performed it.
+Keep answers brief and natural because they are usually spoken aloud.
 """
 
 
-def _get_client():
-    global _client
-    if _client is not None:
-        return _client
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
+def _get_chat():
+    global _client, _chat
+    if _chat is not None:
+        return _chat
+    if not GEMINI_API_KEY:
         return None
+
     from google import genai
-    _client = genai.Client(api_key=api_key)
-    return _client
+
+    _client = genai.Client(api_key=GEMINI_API_KEY)
+    _chat = _client.chats.create(model=GEMINI_MODEL)
+    return _chat
 
 
 def ask_gemini(message: str) -> str | None:
-    global _previous_interaction_id
-    client = _get_client()
-    if client is None:
+    chat = _get_chat()
+    if chat is None:
         return None
     try:
-        interaction = client.interactions.create(
-            model=MODEL,
-            input=message,
-            previous_interaction_id=_previous_interaction_id,
-            system_instruction=SYSTEM_INSTRUCTION,
-        )
-        _previous_interaction_id = interaction.id
-        answer = (interaction.output_text or "").strip()
+        prompt = SYSTEM_INSTRUCTION + "\nUser: " + message
+        response = chat.send_message(prompt)
+        answer = (response.text or "").strip()
         return answer or None
     except Exception as exc:
         print(f"Gemini error: {exc}")
