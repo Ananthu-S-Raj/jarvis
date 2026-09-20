@@ -1,3 +1,7 @@
 SpeechRecognition==3.14.3
 PyAudio==0.2.14
 pyttsx3==2.99
+PySide6
+google-genai
+python-dotenv
+pywin32==312
