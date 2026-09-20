@@ -1,13 +1,11 @@
-"""Hybrid local command router with Gemini fallback."""
+"""Hybrid fast local router with Gemini tool planning."""
 
 from datetime import datetime, timedelta
 import re
-import urllib.parse
-import webbrowser
 
 from jarvis.brain import ask_gemini
 from jarvis.notes import add_note, recent_notes
-from jarvis.windows import close_app, open_app
+from jarvis.windows import close_app, open_app, search_web, play_youtube
 
 WAKE_PATTERNS=(r"^hey\s+jarvis\b[,:]?\s*",r"^hi\s+jarvis\b[,:]?\s*",r"^okay\s+jarvis\b[,:]?\s*",r"^ok\s+jarvis\b[,:]?\s*",r"^jarvis\b[,:]?\s*")
 EXIT_PHRASES=("exit","quit","goodbye","bye jarvis","exit jarvis","close jarvis","stop jarvis")
@@ -28,25 +26,27 @@ def should_exit(raw):
 def _local(command):
     if not command:
         return "Yes?"
-
     if command in {"hello","hi","hey"}:
         return "Hello. How can I help?"
 
-    match=re.search(r"\b(?:open|launch|start)\s+(?:the\s+)?(.+)$",command)
-    if match:
+    # Only intercept simple single-action app commands. Compound language goes to Gemini.
+    match=re.fullmatch(r"(?:open|launch|start)\s+(?:the\s+)?([\w ]+)",command)
+    if match and not any(word in command for word in (" and ", " then ", " play ", " search ", " for ")):
         return open_app(match.group(1).strip())
 
-    match=re.search(r"\b(?:close|quit|stop)\s+(?:the\s+)?(.+)$",command)
-    if match:
+    match=re.fullmatch(r"(?:close|quit|stop)\s+(?:the\s+)?([\w ]+)",command)
+    if match and " and " not in command and " then " not in command:
         return close_app(match.group(1).strip())
 
-    match=re.search(r"^(?:search(?: google)?(?: for)?|google)\s+(.+)$",command)
+    match=re.fullmatch(r"(?:search(?: google)?(?: for)?|google)\s+(.+)",command)
     if match:
-        query=match.group(1).strip()
-        webbrowser.open("https://www.google.com/search?q="+urllib.parse.quote_plus(query))
-        return f"Searching Google for {query}."
+        return search_web(match.group(1).strip())
 
-    match=re.search(r"^(?:create|add|save|make) (?:a )?note(?: saying| that|:)?\s+(.+)$",command)
+    match=re.fullmatch(r"(?:play|play youtube|youtube)\s+(.+)",command)
+    if match:
+        return play_youtube(match.group(1).strip())
+
+    match=re.fullmatch(r"(?:create|add|save|make) (?:a )?note(?: saying| that|:)?\s+(.+)",command)
     if match:
         return add_note(match.group(1).strip())
 
@@ -62,7 +62,6 @@ def _local(command):
         return f"Tomorrow is {d.strftime('%A, %B %d, %Y')}."
     if "date" in command or command=="today":
         return f"Today is {now.strftime('%A, %B %d, %Y')}."
-
     return None
 
 
@@ -71,7 +70,7 @@ def handle_command(raw_command):
     local=_local(command)
     if local:
         return local
-    answer=ask_gemini(command)
+    answer=ask_gemini(command, with_tools=True)
     if answer:
         return answer
-    return "I understood you, but my AI connection is unavailable and I don't have a local tool for that yet."
+    return "My AI connection is unavailable, and I don't have a local tool for that yet."
